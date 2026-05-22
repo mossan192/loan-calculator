@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ローン計算アプリ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Lato:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#f5f0ea; --surface:#fdfaf6; --surface2:#f0ebe3;
+  --border:#e0d6c8; --border2:#cec4b4;
+  --accent:#9b7e5a; --accent2:#c4956a; --accent2-light:#faf0e4;
+  --warn:#b05a3a; --warn-light:#faeee8;
+  --green:#508c64; --green-light:#eef6f0;
+  --blue:#4a7a9a; --blue-light:#edf3fa;
+  --principal-color:#e8d9bc; --interest-color:#b8cce0;
+  --text:#3a2e22; --text-muted:#8a7560; --text-dim:#baa890;
+  --shadow-sm:0 1px 6px rgba(80,55,30,.07);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;min-height:100vh;padding:36px 16px 80px;display:flex;flex-direction:column;align-items:center;}
+
+.header-bg{background:linear-gradient(135deg,#a0845c,#c4a07a);border-radius:20px;padding:20px 40px 22px;margin-bottom:28px;box-shadow:0 4px 20px rgba(120,80,40,.18);text-align:center;animation:fadeDown .5s ease;}
+.logo-mark{font-family:'Lato',sans-serif;font-size:10px;letter-spacing:4px;color:#fff;opacity:.7;margin-bottom:6px;text-transform:uppercase;}
+h1{font-size:26px;font-weight:700;color:#fff;letter-spacing:1px;}
+
+.wrapper{width:100%;max-width:980px;display:flex;flex-direction:column;gap:16px;animation:fadeUp .6s ease .1s both;}
+.row{display:grid;gap:16px;}
+.row-2{grid-template-columns:1fr 1fr;}
+.row-3{grid-template-columns:repeat(3,1fr);}
+.row-5{grid-template-columns:repeat(5,1fr);}
+@media(max-width:720px){.row-2,.row-3,.row-5{grid-template-columns:1fr;}}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 24px;box-shadow:var(--shadow-sm);}
+.card-title{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--text-dim);font-family:'Lato',sans-serif;margin-bottom:16px;}
+
+.field{margin-bottom:14px;}.field:last-child{margin-bottom:0;}
+.field-label{font-size:12px;color:var(--text-muted);margin-bottom:4px;}
+.input-group{display:flex;align-items:center;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;overflow:hidden;transition:border-color .2s,box-shadow .2s;}
+.input-group:focus-within{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(196,149,106,.15);}
+.input-group input[type="text"]{flex:1;border:none;background:transparent;padding:9px 12px;font-size:15px;font-family:'Lato',sans-serif;color:var(--text);outline:none;min-width:0;text-align:right;}
+.input-group input[type="text"]::placeholder{color:var(--text-dim);font-size:13px;}
+.input-unit{padding:0 11px;font-size:12px;color:var(--text-muted);white-space:nowrap;border-left:1px solid var(--border);background:#ede7dc;height:100%;display:flex;align-items:center;min-height:40px;}
+
+.bonus-mode-tabs,.prepay-type-tabs{display:flex;background:var(--surface2);border-radius:8px;padding:2px;gap:2px;margin-bottom:7px;}
+.bonus-mode-tab,.prepay-type-tab{flex:1;padding:5px 4px;text-align:center;font-size:11px;border-radius:6px;cursor:pointer;color:var(--text-muted);border:none;background:transparent;font-family:'Noto Sans JP',sans-serif;transition:all .2s;}
+.bonus-mode-tab.active,.prepay-type-tab.active{background:var(--surface);color:var(--accent);font-weight:500;box-shadow:var(--shadow-sm);}
+
+.tabs{display:flex;background:var(--surface2);border-radius:10px;padding:3px;gap:2px;margin-bottom:16px;}
+.tab{flex:1;padding:6px 4px;text-align:center;font-size:12px;border-radius:8px;cursor:pointer;color:var(--text-muted);border:none;background:transparent;font-family:'Noto Sans JP',sans-serif;transition:all .2s;}
+.tab.active{background:var(--surface);color:var(--accent);font-weight:500;box-shadow:var(--shadow-sm);}
+
+.rate-row-label{font-size:11px;color:var(--text-muted);margin-bottom:4px;}
+.rate-remove-btn{background:none;border:1px solid var(--border2);color:var(--text-muted);border-radius:7px;padding:4px 10px;font-size:11px;cursor:pointer;transition:all .2s;}
+.rate-remove-btn:hover{background:var(--warn-light);border-color:var(--warn);color:var(--warn);}
+.add-rate-btn{background:none;border:1.5px dashed var(--border2);color:var(--text-muted);border-radius:9px;padding:7px 14px;font-size:12px;cursor:pointer;transition:all .2s;margin-top:8px;width:100%;}
+.add-rate-btn:hover{border-color:var(--accent2);color:var(--accent);}
+.add-rate-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+/* 結果カード */
+.result-card{border-radius:12px;padding:14px 12px;text-align:center;border:1.5px solid transparent;}
+.result-card.c-brown{background:var(--accent2-light);border-color:rgba(196,149,106,.35);}
+.result-card.c-gray{background:var(--surface2);border-color:var(--border);}
+.result-card.c-red{background:var(--warn-light);border-color:rgba(176,90,58,.3);}
+.result-card.c-blue{background:var(--blue-light);border-color:rgba(90,122,154,.25);}
+.result-card.c-green{background:var(--green-light);border-color:rgba(80,140,100,.25);}
+.result-label{font-size:10px;color:var(--text-muted);margin-bottom:4px;letter-spacing:.2px;}
+.result-value{font-family:'Lato',sans-serif;font-size:17px;font-weight:700;letter-spacing:-.3px;color:var(--text);}
+.result-value.brown{color:var(--accent);}
+.result-value.red{color:var(--warn);}
+.result-value.blue{color:var(--blue);}
+.result-value.green{color:var(--green);}
+.result-sub{font-size:10px;color:var(--text-dim);margin-top:2px;font-family:'Lato',sans-serif;}
+.result-card.c-total{background:#ede5d8;border-color:rgba(155,126,90,.5);box-shadow:0 2px 10px rgba(155,126,90,.15);}
+.result-card.c-interest{background:#f5e0d8;border-color:rgba(176,90,58,.45);box-shadow:0 2px 10px rgba(176,90,58,.12);}
+.result-value.lg{font-size:22px;}
+
+/* 繰上返済効果パネル */
+.prepay-effect-panel{background:linear-gradient(135deg,#f8f3ec,#f2ebe0);border:1.5px solid var(--border2);border-radius:14px;padding:18px 20px;margin-top:16px;}
+.prepay-effect-title{font-size:11px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;font-family:'Lato',sans-serif;margin-bottom:14px;font-weight:700;}
+.effect-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+@media(max-width:600px){.effect-grid{grid-template-columns:1fr;}}
+.effect-item{background:var(--surface);border-radius:10px;padding:12px 14px;border:1px solid var(--border);text-align:center;}
+.effect-label{font-size:10px;color:var(--text-muted);margin-bottom:4px;}
+.effect-value{font-family:'Lato',sans-serif;font-size:16px;font-weight:700;}
+.effect-value.save{color:var(--green);}
+.effect-value.warn{color:var(--warn);}
+.effect-value.blue{color:var(--blue);}
+.effect-sub{font-size:10px;color:var(--text-dim);margin-top:2px;}
+.effect-badge{display:inline-block;background:var(--green-light);color:var(--green);border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700;margin-top:6px;border:1px solid rgba(80,140,100,.2);}
+
+/* グラフ */
+.chart-outer{display:flex;align-items:stretch;gap:4px;}
+.y-axis-label{font-size:12px;color:var(--text-dim);text-align:center;flex-shrink:0;writing-mode:vertical-lr;transform:rotate(0deg);padding:4px 0;letter-spacing:2px;}
+.chart-inner{flex:1;display:flex;flex-direction:column;}
+.svg-wrap{width:100%;height:240px;}
+.svg-wrap svg{width:100%;height:100%;}
+.x-axis-label{text-align:center;font-size:11px;color:var(--text-dim);margin-top:3px;}
+.area-legend{display:flex;gap:16px;margin-bottom:8px;flex-wrap:wrap;}
+.area-legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);}
+.area-legend-dot{width:12px;height:12px;border-radius:3px;}
+
+/* 償還表 */
+.schedule-toggle{display:flex;gap:6px;margin-bottom:12px;}
+.toggle-btn{padding:5px 14px;border-radius:8px;font-size:12px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text-muted);cursor:pointer;font-family:'Noto Sans JP',sans-serif;transition:all .2s;}
+.toggle-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.table-wrap{max-height:320px;overflow-y:auto;border-radius:10px;border:1px solid var(--border);}
+.table-wrap::-webkit-scrollbar{width:4px;}
+.table-wrap::-webkit-scrollbar-track{background:var(--surface2);}
+.table-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+table{width:100%;border-collapse:collapse;font-size:12px;font-family:'Lato',sans-serif;}
+thead th{background:var(--surface2);padding:8px 10px;text-align:right;color:var(--text-muted);font-size:10px;letter-spacing:1px;position:sticky;top:0;z-index:1;border-bottom:1px solid var(--border);}
+thead th:first-child{text-align:left;}
+tbody tr{border-bottom:1px solid rgba(210,195,175,.45);}
+tbody tr:hover{background:#f7f2ea;}
+tbody tr:last-child{border-bottom:none;}
+tbody td{padding:7px 10px;text-align:right;color:var(--text);}
+tbody td:first-child{text-align:left;color:var(--text-muted);}
+td.pc{color:#7a6040;}
+td.ic{color:var(--warn);}
+tbody tr.year-row{background:#f0e8d8;}
+tbody tr.year-row td{font-weight:700;color:var(--text);border-top:1px solid var(--border);}
+tbody tr.rate-row td{background:#fdf5e8;color:#a0845c;font-weight:500;font-size:11px;text-align:center!important;border-top:1px dashed #c4a07a;border-bottom:1px dashed #c4a07a;}
+tbody tr.prepay-row td{background:#eef6f0;color:var(--green);font-weight:500;font-size:11px;text-align:center!important;border-top:1px dashed rgba(80,140,100,.4);border-bottom:1px dashed rgba(80,140,100,.4);}
+
+@keyframes fadeDown{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.pop{animation:pop .22s ease;}
+@keyframes pop{0%{opacity:.6;transform:scale(.97)}100%{opacity:1;transform:scale(1)}}
+</style>
+</head>
+<body>
+
+<div class="header-bg">
+  <div class="logo-mark">Loan Calculator</div>
+  <h1>ローン計算アプリ</h1>
+</div>
+
+<div class="wrapper">
+
+  <!-- 入力エリア -->
+  <div class="row row-2">
+    <!-- 借入条件 -->
+    <div class="card">
+      <div class="card-title">借入条件</div>
+      <div class="field">
+        <div class="field-label">借入金額</div>
+        <div class="input-group">
+          <input type="text" id="amount" placeholder="例：30,000,000" oninput="onCommaInput(this)" onblur="formatOnBlur(this)" onfocus="this.select()">
+          <div class="input-unit">円</div>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">返済期間</div>
+        <div class="input-group">
+          <input type="text" id="years" placeholder="例：35" oninput="onCommaInput(this)" onblur="formatOnBlur(this)" onfocus="this.select()">
+          <div class="input-unit">年</div>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">当初金利（年利率）</div>
+        <div class="input-group">
+          <input type="text" id="rate0" placeholder="例：1.50" oninput="updateAll()" onfocus="this.select()">
+          <div class="input-unit">%</div>
+        </div>
+      </div>
+      <div id="rate-changes-wrap"></div>
+      <button class="add-rate-btn" id="add-rate-btn" onclick="addRateChange()">＋ 金利変動を追加（最大2回）</button>
+    </div>
+
+    <!-- 返済方式・オプション -->
+    <div class="card">
+      <div class="card-title">返済方式・オプション</div>
+      <div class="tabs">
+        <button class="tab active" onclick="setMethod('equal-payment',this)">元利均等返済</button>
+        <button class="tab" onclick="setMethod('equal-principal',this)">元金均等返済</button>
+      </div>
+      <div class="field">
+        <div class="field-label">ボーナス払い入力方式</div>
+        <div class="bonus-mode-tabs">
+          <button class="bonus-mode-tab active" onclick="setBonusMode('per-payment',this)">1回あたりの金額</button>
+          <button class="bonus-mode-tab" onclick="setBonusMode('loan-amount',this)">借入額として入力</button>
+        </div>
+        <div class="input-group">
+          <input type="text" id="bonus" placeholder="0" oninput="onCommaInput(this)" onblur="formatOnBlur(this)" onfocus="this.select()">
+          <div class="input-unit" id="bonus-unit">円/回</div>
+        </div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:4px;" id="bonus-hint">年2回（6月・12月）のボーナス月に追加返済</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 繰上返済カード（独立） -->
+  <div class="card">
+    <div class="card-title">繰上返済シミュレーション</div>
+    <div class="field">
+      <div class="field-label">繰上返済タイプ</div>
+      <div class="prepay-type-tabs">
+        <button class="prepay-type-tab active"  onclick="setPrepayType('none',this)">なし</button>
+        <button class="prepay-type-tab" onclick="setPrepayType('shorten',this)">期間短縮型</button>
+        <button class="prepay-type-tab" onclick="setPrepayType('reduce',this)">返済額軽減型</button>
+        <button class="prepay-type-tab" onclick="setPrepayType('both',this)">併用型</button>
+      </div>
+    </div>
+    <div id="prepay-inputs" style="display:none">
+      <div class="row row-2" style="margin-top:4px;">
+        <div class="field" style="margin-bottom:0">
+          <div class="field-label">繰上返済額（一括）</div>
+          <div class="input-group">
+            <input type="text" id="prepay" placeholder="0" oninput="onCommaInput(this)" onblur="formatOnBlur(this)" onfocus="this.select()">
+            <div class="input-unit">円</div>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <div class="field-label">実施タイミング</div>
+          <div class="input-group">
+            <input type="text" id="prepay-timing" placeholder="60" oninput="onCommaInput(this)" onblur="formatOnBlur(this)" onfocus="this.select()">
+            <div class="input-unit">ヶ月後</div>
+          </div>
+        </div>
+      </div>
+      <!-- 併用型のみ：期間短縮・軽減の割合 -->
+      <div id="prepay-both-wrap" style="display:none;margin-top:12px;">
+        <div class="field" style="margin-bottom:0">
+          <div class="field-label">期間短縮に充てる割合</div>
+          <div class="input-group">
+            <input type="text" id="prepay-shorten-ratio" placeholder="50" oninput="onCommaInput(this)" onblur="formatOnBlur(this)" onfocus="this.select()">
+            <div class="input-unit">%（残りは返済額軽減）</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 効果表示 -->
+      <div class="prepay-effect-panel" id="prepay-effect-panel" style="display:none">
+        <div class="prepay-effect-title">💰 繰上返済の効果</div>
+        <div class="effect-grid">
+          <div class="effect-item">
+            <div class="effect-label">利息圧縮額</div>
+            <div class="effect-value save" id="eff-interest-save">—</div>
+            <div class="effect-sub" id="eff-interest-save-sub">—</div>
+          </div>
+          <div class="effect-item" id="eff-period-wrap">
+            <div class="effect-label">返済期間の短縮</div>
+            <div class="effect-value blue" id="eff-period">—</div>
+            <div class="effect-sub" id="eff-period-sub">—</div>
+          </div>
+          <div class="effect-item" id="eff-monthly-wrap">
+            <div class="effect-label">月額軽減額</div>
+            <div class="effect-value green" id="eff-monthly">—</div>
+            <div class="effect-sub" id="eff-monthly-sub">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- サマリー -->
+  <div class="card">
+    <div class="card-title">計算結果サマリー</div>
+    <div class="row row-5">
+      <div class="result-card c-brown">
+        <div class="result-label">月々の返済額</div>
+        <div class="result-value brown" id="res-monthly">—</div>
+        <div class="result-sub" id="res-monthly-sub">円/月</div>
+      </div>
+      <div class="result-card c-blue">
+        <div class="result-label">ボーナス時 加算額</div>
+        <div class="result-value blue" id="res-bonus">—</div>
+        <div class="result-sub" id="res-bonus-sub">通常月に加算</div>
+      </div>
+      <div class="result-card c-green">
+        <div class="result-label">年間返済額</div>
+        <div class="result-value green" id="res-annual">—</div>
+        <div class="result-sub" id="res-annual-sub">円/年</div>
+      </div>
+      <div class="result-card c-total">
+        <div class="result-label">総返済額</div>
+        <div class="result-value lg" id="res-total">—</div>
+        <div class="result-sub" id="res-total-sub">—</div>
+      </div>
+      <div class="result-card c-interest">
+        <div class="result-label">総利息額</div>
+        <div class="result-value red lg" id="res-interest">—</div>
+        <div class="result-sub" id="res-interest-sub">—</div>
+      </div>
+    </div>
+    <!-- 金利変動後の月額（変動がある場合のみ表示） -->
+    <div id="rate-change-summary" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--text-dim);font-family:'Lato',sans-serif;margin-bottom:10px;">金利変動後の月々の返済額</div>
+      <div id="rate-change-rows" style="display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+  </div>
+
+  <!-- 年間棒グラフ -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:10px">年間返済額の推移（元金・利息の内訳）</div>
+    <div class="area-legend">
+      <div class="area-legend-item"><div class="area-legend-dot" style="background:var(--interest-color)"></div>利息</div>
+      <div class="area-legend-item"><div class="area-legend-dot" style="background:var(--principal-color)"></div>元金</div>
+    </div>
+    <div class="chart-outer">
+      <div class="y-axis-label">返済額</div>
+      <div class="chart-inner">
+        <div class="svg-wrap">
+          <svg id="bar-svg" viewBox="0 0 820 260" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <linearGradient id="grad-p" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#dece9e"/><stop offset="100%" stop-color="#e8d9bc"/>
+              </linearGradient>
+              <linearGradient id="grad-i" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#9ab8d0"/><stop offset="100%" stop-color="#b8cce0"/>
+              </linearGradient>
+              <clipPath id="chart-clip">
+                <rect x="36" y="38" width="778" height="202"/>
+              </clipPath>
+            </defs>
+            <line x1="36" y1="38" x2="36" y2="240" stroke="#c8bfb0" stroke-width="1.5"/>
+            <line x1="36" y1="240" x2="814" y2="240" stroke="#c8bfb0" stroke-width="1.5"/>
+            <polygon points="36,34 32,42 40,42" fill="#c8bfb0"/>
+            <polygon points="818,240 810,236 810,244" fill="#c8bfb0"/>
+            <g id="bar-group" clip-path="url(#chart-clip)"></g>
+            <g id="bar-rate-markers"></g>
+          </svg>
+        </div>
+        <div class="x-axis-label">返済期間（年）</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 償還表 -->
+  <div class="card">
+    <div class="card-title">償還表</div>
+    <div class="schedule-toggle">
+      <button class="toggle-btn active" onclick="setScheduleMode('monthly',this)">月次</button>
+      <button class="toggle-btn" onclick="setScheduleMode('yearly',this)">年次</button>
+    </div>
+    <div class="table-wrap">
+      <table><thead id="schedule-head"></thead><tbody id="schedule-body"></tbody></table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let method = 'equal-payment';
+let scheduleMode = 'monthly';
+let bonusMode = 'per-payment';
+let prepayType = 'none'; // none / shorten / reduce / both
+let lastRows = [];
+let rateChanges = [];
+
+/* ===== 繰上返済タイプ ===== */
+function setPrepayType(t, btn) {
+  prepayType = t;
+  document.querySelectorAll('.prepay-type-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('prepay-inputs').style.display = t==='none' ? 'none' : 'block';
+  document.getElementById('prepay-both-wrap').style.display = t==='both' ? 'block' : 'none';
+  updateAll();
+}
+
+/* ===== 金利変動UI ===== */
+function addRateChange() {
+  if(rateChanges.length>=2) return;
+  rateChanges.push({month:'',rate:''});
+  renderRateChanges(); updateAll();
+}
+function removeRateChange(idx) {
+  rateChanges.splice(idx,1);
+  renderRateChanges(); updateAll();
+}
+function renderRateChanges() {
+  const wrap=document.getElementById('rate-changes-wrap');
+  const btn=document.getElementById('add-rate-btn');
+  wrap.innerHTML='';
+  rateChanges.forEach((rc,i)=>{
+    const div=document.createElement('div');
+    div.style.marginBottom='10px';
+    div.innerHTML=`
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div class="field-label" style="margin:0">金利変動 ${i+1}回目</div>
+        <button class="rate-remove-btn" onclick="removeRateChange(${i})">削除</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div>
+          <div class="rate-row-label">変動タイミング</div>
+          <div class="input-group">
+            <input type="text" value="${rc.month}" placeholder="例：60"
+              oninput="onRateChangeInput(${i},'month',this)" onblur="formatOnBlur(this)"
+              style="text-align:right;padding:8px 10px;font-size:14px;font-family:'Lato',sans-serif;border:none;background:transparent;outline:none;flex:1;color:var(--text);min-width:0;" onfocus="this.select()">
+            <div class="input-unit">ヶ月後</div>
+          </div>
+        </div>
+        <div>
+          <div class="rate-row-label">変動後の年利率</div>
+          <div class="input-group">
+            <input type="text" value="${rc.rate}" placeholder="例：2.00"
+              oninput="onRateChangeInput(${i},'rate',this)"
+              style="text-align:right;padding:8px 10px;font-size:14px;font-family:'Lato',sans-serif;border:none;background:transparent;outline:none;flex:1;color:var(--text);min-width:0;" onfocus="this.select()">
+            <div class="input-unit">%</div>
+          </div>
+        </div>
+      </div>`;
+    wrap.appendChild(div);
+  });
+  btn.disabled=rateChanges.length>=2;
+}
+function onRateChangeInput(idx,field,el) {
+  if(field==='month'){
+    const raw=el.value.replace(/[^0-9]/g,'');
+    el.value=raw.replace(/\B(?=(\d{3})+(?!\d))/g,',');
+    rateChanges[idx].month=parseInt(raw)||'';
+  } else { rateChanges[idx].rate=el.value; }
+  updateAll();
+}
+
+/* ===== ユーティリティ ===== */
+function rawNum(id){ return parseFloat(document.getElementById(id).value.replace(/,/g,''))||0; }
+function onCommaInput(el) {
+  const pos=el.selectionStart, before=el.value.length;
+  const raw=el.value.replace(/[^0-9.]/g,'');
+  const parts=raw.split('.');
+  parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  el.value=parts.join('.');
+  const after=el.value.length;
+  el.selectionStart=el.selectionEnd=pos+(after-before);
+  updateAll();
+}
+function formatOnBlur(el) {
+  const raw=el.value.replace(/[^0-9.]/g,'');
+  if(!raw) return;
+  const parts=raw.split('.');
+  parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  el.value=parts.join('.');
+}
+function setMethod(m,btn){
+  method=m;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active'); updateAll();
+}
+function setScheduleMode(m,btn){
+  scheduleMode=m;
+  document.querySelectorAll('.toggle-btn').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active'); renderSchedule(lastRows);
+}
+function setBonusMode(m,btn){
+  bonusMode=m;
+  document.querySelectorAll('.bonus-mode-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('bonus-unit').textContent=m==='per-payment'?'円/回':'円';
+  document.getElementById('bonus-hint').textContent=m==='per-payment'
+    ?'年2回（6月・12月）のボーナス月に追加返済':'借入額のうちボーナス返済に充てる金額';
+  updateAll();
+}
+function fmt(n){
+  return Math.round(n).toLocaleString()+'円';
+}
+function fmtN(n){ return Math.round(n).toLocaleString(); }
+function animatePop(id){ const el=document.getElementById(id); if(!el) return; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+
+function calcMonthlyBase(principal, monthlyRate, n){
+  if(n<=0) return 0;
+  if(monthlyRate===0) return principal/n;
+  return principal*monthlyRate*Math.pow(1+monthlyRate,n)/(Math.pow(1+monthlyRate,n)-1);
+}
+
+/* ===== コアシミュレーション関数 ===== */
+function simulate(amount, years, rate0, sortedChanges, bonusCfg, prepayCfg) {
+  // bonusCfg: { bonusPerPayment, monthlyBasePrincipal }
+  // prepayCfg: { type, amount, timing, shortenRatio }
+  //   type: 'none'|'shorten'|'reduce'|'both'
+  //   shorten: 繰上後に残余期間を短縮（月額維持）
+  //   reduce:  繰上後に月額を下げる（期間維持）
+  //   both:    shortenRatio%を期間短縮、残りを月額軽減
+
+  const n = Math.round(years*12);
+  const {bonusPerPayment, monthlyBasePrincipal} = bonusCfg;
+  const {type:pType, amount:pAmount, timing:pTiming, shortenRatio} = prepayCfg;
+
+  function getRateAt(month){
+    let r=rate0;
+    for(const rc of sortedChanges){ if(month>=rc.month) r=rc.rate; }
+    return r;
+  }
+
+  const monthlyRatio = amount>0 ? monthlyBasePrincipal/amount : 1;
+
+  let balance = amount;
+  let totalPaid = 0;
+  let rows = [];
+  let curRate = rate0;
+  let curMonthlyRate = curRate/100/12;
+  let curMonthlyBase = calcMonthlyBase(monthlyBasePrincipal, curMonthlyRate, n);
+  // remainMonthsの代わりにtargetEndMonth（終了予定の月番号）で管理
+  // → 期間短縮後に金利変動が来ても残余期間を正しく計算できる
+  let targetEndMonth = n;
+  let monthCounter = 0;
+
+  while(balance > 0.5 && monthCounter < n*2) {
+    monthCounter++;
+    const i = monthCounter;
+
+    // 金利変動: 終了予定月から今月を引いた残余期間で月額を再計算
+    const newRate = getRateAt(i);
+    if(newRate !== curRate){
+      curRate = newRate;
+      curMonthlyRate = curRate/100/12;
+      if(method==='equal-payment'){
+        const remN = Math.max(1, targetEndMonth - i + 1);
+        const mBal = balance * monthlyRatio;
+        curMonthlyBase = calcMonthlyBase(mBal, curMonthlyRate, remN);
+      }
+    }
+
+    // 繰上返済
+    if(pType!=='none' && pAmount>0 && i===Math.round(pTiming)){
+      const ap = Math.min(pAmount, balance);
+      balance -= ap; totalPaid += ap;
+      if(balance<=0.5) { rows.push({month:i,year:Math.ceil(i/12),payment:ap,normalPayment:ap,principal:ap,principalNormal:ap,interest:0,bonusExtra:0,balance:0,isBonus:false,rate:curRate,isPrepay:true}); break; }
+
+      if(method==='equal-payment'){
+        const mBal = balance * monthlyRatio;
+        const remAfter = n - i; // 元の残余期間
+
+        if(pType==='shorten'){
+          // 月額を維持して完済できる残月数を計算 → targetEndMonthを更新
+          let newRemain;
+          if(curMonthlyRate===0){
+            newRemain = Math.ceil(mBal/curMonthlyBase);
+          } else {
+            const x = 1 - curMonthlyRate*mBal/curMonthlyBase;
+            newRemain = x<=0 ? 1 : Math.ceil(-Math.log(x)/Math.log(1+curMonthlyRate));
+          }
+          targetEndMonth = i + newRemain; // 繰上月 + 残月数 = 新しい終了予定月
+          // 月額はそのまま維持
+        } else if(pType==='reduce'){
+          // 期間を維持（targetEndMonthはそのまま）して月額を下げる
+          targetEndMonth = i + remAfter;
+          curMonthlyBase = calcMonthlyBase(mBal, curMonthlyRate, Math.max(1,remAfter));
+        } else if(pType==='both'){
+          const sr = Math.min(100,Math.max(0,shortenRatio))/100;
+          const reduceAmt = ap * (1 - sr);
+          const balForShorten = balance + reduceAmt;
+          const mBalS = balForShorten * monthlyRatio;
+          let newRemain;
+          if(curMonthlyRate===0){
+            newRemain = Math.ceil(mBalS/curMonthlyBase);
+          } else {
+            const x2 = 1 - curMonthlyRate*mBalS/curMonthlyBase;
+            newRemain = x2<=0 ? 1 : Math.ceil(-Math.log(x2)/Math.log(1+curMonthlyRate));
+          }
+          targetEndMonth = i + newRemain;
+          const mBal2 = balance * monthlyRatio;
+          curMonthlyBase = calcMonthlyBase(mBal2, curMonthlyRate, Math.max(1,newRemain));
+        }
+      } else {
+        // 元金均等: 期間短縮のみ
+        const newRemain = Math.ceil(balance / (monthlyBasePrincipal/n));
+        targetEndMonth = i + newRemain;
+      }
+
+      rows.push({month:i,year:Math.ceil(i/12),payment:ap,normalPayment:ap,principal:ap,principalNormal:ap,interest:0,bonusExtra:0,balance,isBonus:false,rate:curRate,isPrepay:true});
+      continue;
+    }
+
+    const interestPart = balance * curMonthlyRate;
+    let principalPart, payment;
+
+    if(method==='equal-payment'){
+      payment = Math.min(curMonthlyBase, balance+interestPart);
+      principalPart = Math.max(payment-interestPart, 0);
+    } else {
+      principalPart = Math.min(monthlyBasePrincipal/n, balance);
+      payment = principalPart+interestPart;
+    }
+
+    const isBonus=(i%6===0)&&bonusPerPayment>0;
+    const bonusExtra=isBonus?Math.min(bonusPerPayment,Math.max(0,balance-principalPart)):0;
+    const totalPayment=payment+bonusExtra;
+
+    balance=Math.max(balance-principalPart-bonusExtra,0);
+    totalPaid+=totalPayment;
+
+    rows.push({month:i,year:Math.ceil(i/12),payment:totalPayment,normalPayment:payment,
+      principal:principalPart+bonusExtra,principalNormal:principalPart,
+      interest:interestPart,bonusExtra,balance,isBonus,rate:curRate,isPrepay:false});
+
+    // 期間短縮型は remainMonths で終了判断
+    if(pType==='shorten'&&balance<=0.5) break;
+    if(method==='equal-payment'&&pType==='shorten'){
+      // remainMonthsをカウントダウン
+      if(i>=Math.round(pTiming)){ /* remainMonthsはi=pTiming時に設定済 */ }
+    }
+  }
+
+  return { rows, totalPaid };
+}
+
+/* ===== メイン計算 ===== */
+function updateAll(){
+  const amount = rawNum('amount');
+  const years  = rawNum('years')||1;
+  const rate0  = parseFloat(document.getElementById('rate0').value)||0;
+  const bonusInput = rawNum('bonus');
+  const prepayAmt  = rawNum('prepay');
+  const prepayTim  = rawNum('prepay-timing')||1;
+  const shortenRatio = rawNum('prepay-shorten-ratio')||50;
+  const n = Math.round(years*12);
+
+  const IDS=['res-monthly','res-bonus','res-annual','res-total','res-interest'];
+  if(amount<=0){
+    IDS.forEach(id=>{ document.getElementById(id).textContent='—'; });
+    ['res-monthly-sub','res-bonus-sub','res-annual-sub','res-total-sub','res-interest-sub'].forEach(id=>{ document.getElementById(id).textContent=''; });
+    document.getElementById('bar-group').innerHTML='';
+    document.getElementById('bar-rate-markers').innerHTML='';
+    document.getElementById('schedule-head').innerHTML='';
+    document.getElementById('schedule-body').innerHTML='';
+    document.getElementById('prepay-effect-panel').style.display='none';
+    return;
+  }
+
+  const sortedChanges=rateChanges
+    .filter(rc=>rc.month>0&&rc.rate!=='')
+    .map(rc=>({month:parseInt(rc.month),rate:parseFloat(rc.rate)||0}))
+    .sort((a,b)=>a.month-b.month);
+
+  // ボーナス設定
+  let bonusPerPayment=0, monthlyBasePrincipal=amount;
+  if(bonusMode==='per-payment'&&bonusInput>0){
+    bonusPerPayment=bonusInput;
+    const bt=Math.floor(n/6);
+    const bTotal=Math.min(bonusPerPayment*bt, amount*0.85);
+    monthlyBasePrincipal=Math.max(amount-bTotal, amount*0.1);
+  } else if(bonusMode==='loan-amount'&&bonusInput>0){
+    const bl=Math.min(bonusInput,amount);
+    monthlyBasePrincipal=amount-bl;
+    const bt=Math.floor(n/6);
+    bonusPerPayment=bt>0?bl/bt:0;
+  }
+  const bonusCfg={bonusPerPayment,monthlyBasePrincipal};
+
+  // ① 繰上返済なしのベースライン
+  const baseResult = simulate(amount,years,rate0,sortedChanges,bonusCfg,
+    {type:'none',amount:0,timing:0,shortenRatio:0});
+  const baseRows = baseResult.rows;
+  const baseTotalPaid = baseResult.totalPaid;
+  const baseInterest = baseTotalPaid - amount;
+  const baseNormalRows = baseRows.filter(r=>!r.isPrepay);
+  const baseMonths = baseNormalRows.length>0 ? baseNormalRows[baseNormalRows.length-1].month : n;
+
+  // ② 繰上返済ありシミュレーション
+  let simRows = baseRows, simTotalPaid = baseTotalPaid;
+  if(prepayType!=='none'&&prepayAmt>0){
+    const simResult = simulate(amount,years,rate0,sortedChanges,bonusCfg,
+      {type:prepayType,amount:prepayAmt,timing:prepayTim,shortenRatio});
+    simRows = simResult.rows;
+    simTotalPaid = simResult.totalPaid;
+  }
+  const simInterest = simTotalPaid - amount;
+  // isPrepay行を除いた最終月で期間を比較（繰上行は期間ではなく返済イベント）
+  const simNormalRows = simRows.filter(r=>!r.isPrepay);
+  const simMonths = simNormalRows.length>0 ? simNormalRows[simNormalRows.length-1].month : n;
+
+  lastRows = simRows;
+
+  // ============================================================
+  // 全効果を「繰上時点の金利固定」で純粋計算
+  // → ボーナス払い・金利変動に左右されない、繰上単体の効果を表示
+  // 方式: 繰上時点の金利を固定してbase/simを再シミュレーションし総利息差を取得
+  // ============================================================
+  let interestSave = 0;
+  let periodSaveMonths = 0;
+  let monthlyReduce = 0;
+  let rateAtPrepayDisplay = rate0;
+
+  if(prepayType !== 'none' && prepayAmt > 0) {
+    // 繰上直前行から繰上時点の金利を取得
+    const rowBeforePrepay = simRows.filter(r=>!r.isPrepay&&!r.isBonus&&r.month<prepayTim).slice(-1)[0]
+      || simRows.find(r=>!r.isPrepay&&!r.isBonus)
+      || null;
+    const rateAtPrepay  = rowBeforePrepay ? rowBeforePrepay.rate : rate0;
+    rateAtPrepayDisplay = rateAtPrepay;
+    const mrAtPrepay    = rateAtPrepay / 100 / 12;
+    const remAtPrepay   = Math.max(1, n - Math.round(prepayTim));
+
+    // 期間短縮・返済額軽減の純粋効果（繰上直前の残高・月額ベース）
+    const balBeforePrepay = rowBeforePrepay ? rowBeforePrepay.balance : amount;
+    const monthlyAtPrepay = rowBeforePrepay ? rowBeforePrepay.normalPayment : calcMonthlyBase(amount * (monthlyBasePrincipal/amount), mrAtPrepay, n);
+    const balAfterPrepay  = Math.max(0, balBeforePrepay - prepayAmt);
+
+    let newRemain = remAtPrepay;
+    let mAfterReduce = monthlyAtPrepay;
+
+    if(prepayType === 'shorten' || prepayType === 'both') {
+      const mBal = balAfterPrepay * (monthlyBasePrincipal / amount);
+      if(mrAtPrepay === 0) {
+        newRemain = monthlyAtPrepay > 0 ? Math.ceil(mBal / monthlyAtPrepay) : 1;
+      } else {
+        const x = 1 - mrAtPrepay * mBal / monthlyAtPrepay;
+        newRemain = x <= 0 ? 1 : Math.ceil(-Math.log(x) / Math.log(1 + mrAtPrepay));
+      }
+      periodSaveMonths = Math.max(0, remAtPrepay - newRemain);
+    }
+
+    if(prepayType === 'reduce' || prepayType === 'both') {
+      const mr0 = mrAtPrepay;
+      const mBefore = calcMonthlyBase(balBeforePrepay * (monthlyBasePrincipal/amount), mr0, remAtPrepay);
+      mAfterReduce  = calcMonthlyBase(balAfterPrepay  * (monthlyBasePrincipal/amount), mr0, remAtPrepay);
+      monthlyReduce = Math.max(0, mBefore - mAfterReduce);
+    }
+
+    // 利息圧縮額：繰上時点の金利を固定してbase/simを再シミュレーションして差を取得
+    // → ボーナス払いがあっても正確に計算できる
+    const fixedChanges = []; // 金利変動なしで固定
+    const pureBase = simulate(amount, years, rateAtPrepay, fixedChanges, bonusCfg,
+      {type:'none', amount:0, timing:0, shortenRatio:0});
+    const pureSim  = simulate(amount, years, rateAtPrepay, fixedChanges, bonusCfg,
+      {type:prepayType, amount:prepayAmt, timing:prepayTim, shortenRatio});
+    const pureBaseInterest = pureBase.totalPaid - amount;
+    const pureSimInterest  = pureSim.totalPaid  - amount;
+    interestSave = Math.max(0, pureBaseInterest - pureSimInterest);
+
+  } else {
+    interestSave = baseInterest - simInterest;
+  }
+
+  // サマリー表示用
+  const normalRow = simRows.find(r=>!r.isBonus&&!r.isPrepay)||simRows[0]||{normalPayment:0};
+  const firstBonusRow = simRows.find(r=>r.isBonus);
+  const year1Total = simRows.filter(r=>r.year===1).reduce((a,r)=>a+r.payment,0);
+  const principalPct = amount>0?(amount/simTotalPaid*100):0;
+
+  IDS.forEach(animatePop);
+  document.getElementById('res-monthly').textContent=fmtN(normalRow.normalPayment)+'円';
+  document.getElementById('res-monthly-sub').textContent='円/月';
+  if(firstBonusRow&&firstBonusRow.bonusExtra>0){
+    document.getElementById('res-bonus').textContent=fmtN(firstBonusRow.bonusExtra)+'円';
+    document.getElementById('res-bonus-sub').textContent='ボーナス月に加算';
+  } else {
+    document.getElementById('res-bonus').textContent='—';
+    document.getElementById('res-bonus-sub').textContent='ボーナス払いなし';
+  }
+  document.getElementById('res-annual').textContent=fmtN(year1Total)+'円';
+  document.getElementById('res-annual-sub').textContent='初年度年間合計';
+  document.getElementById('res-total').textContent=fmt(simTotalPaid);
+  document.getElementById('res-total-sub').textContent=Math.ceil(simMonths/12)+'年間の総支払い';
+  document.getElementById('res-interest').textContent=fmt(simInterest);
+  document.getElementById('res-interest-sub').textContent='元金比率 '+principalPct.toFixed(1)+'%';
+
+  // 金利変動後の月額表示
+  const rcSummary = document.getElementById('rate-change-summary');
+  const rcRows    = document.getElementById('rate-change-rows');
+  rcRows.innerHTML = '';
+  if(sortedChanges.length > 0){
+    rcSummary.style.display = 'block';
+    sortedChanges.forEach(rc => {
+      // その変動月以降の最初の通常月行を探す
+      const afterRow = simRows.find(r => r.month >= rc.month && !r.isBonus && !r.isPrepay);
+      if(!afterRow) return;
+      const yr = Math.floor((rc.month-1)/12)+1;
+      const mo = ((rc.month-1)%12)+1;
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex;align-items:center;justify-content:space-between;background:var(--accent2-light);border:1px solid rgba(196,149,106,.3);border-radius:10px;padding:10px 14px;';
+      div.innerHTML = `
+        <div>
+          <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;">${rc.month}ヶ月目（${yr}年${mo}ヶ月）〜　年利 <strong style="color:var(--accent)">${rc.rate}%</strong> 適用後</div>
+          <div style="font-size:10px;color:var(--text-dim);">変動後の月々の返済額</div>
+        </div>
+        <div style="font-family:'Lato',sans-serif;font-size:20px;font-weight:700;color:var(--accent);">${fmtN(afterRow.normalPayment)}円</div>`;
+      rcRows.appendChild(div);
+    });
+  } else {
+    rcSummary.style.display = 'none';
+  }
+
+  // 繰上返済効果表示
+  const effPanel=document.getElementById('prepay-effect-panel');
+  if(prepayType!=='none'&&prepayAmt>0){
+    effPanel.style.display='block';
+    document.getElementById('eff-interest-save').textContent=fmt(interestSave);
+    document.getElementById('eff-interest-save-sub').textContent=
+      '繰上時点の金利('+rateAtPrepayDisplay.toFixed(2)+'%)基準で計算';
+
+    // 期間短縮
+    const pw=document.getElementById('eff-period-wrap');
+    if(prepayType==='shorten'||prepayType==='both'){
+      pw.style.display='block';
+      if(periodSaveMonths>0){
+        const sy=Math.floor(periodSaveMonths/12), sm=periodSaveMonths%12;
+        document.getElementById('eff-period').textContent=
+          (sy>0?sy+'年':'')+( sm>0?sm+'ヶ月':'')+'短縮';
+        const pSaveY = Math.floor(periodSaveMonths/12), pSaveM = periodSaveMonths%12;
+        document.getElementById('eff-period-sub').textContent=
+          '繰上時点の金利('+ (simRows.find(r=>!r.isPrepay&&r.month<=prepayTim)?.rate??rate0).toFixed(2)
+          +'%)基準';
+      } else {
+        document.getElementById('eff-period').textContent='変化なし';
+        document.getElementById('eff-period-sub').textContent='';
+      }
+    } else { pw.style.display='none'; }
+
+    // 月額軽減
+    const mw=document.getElementById('eff-monthly-wrap');
+    if(prepayType==='reduce'||prepayType==='both'){
+      mw.style.display='block';
+      document.getElementById('eff-monthly').textContent=
+        monthlyReduce>0?fmtN(monthlyReduce)+'円 軽減':'変化なし';
+      document.getElementById('eff-monthly-sub').textContent=
+        monthlyReduce>0
+          ? '繰上時点の金利('+(simRows.find(r=>!r.isPrepay&&r.month<=prepayTim)?.rate??rate0).toFixed(2)+'%)基準'
+          : '';
+    } else { mw.style.display='none'; }
+  } else {
+    effPanel.style.display='none';
+  }
+
+  drawBarChart(simRows, sortedChanges);
+  renderSchedule(simRows, sortedChanges);
+}
+
+/* ===== 棒グラフ ===== */
+function drawBarChart(rows, rateChangeEvents){
+  const g=document.getElementById('bar-group');
+  const markerG=document.getElementById('bar-rate-markers');
+  g.innerHTML=''; markerG.innerHTML='';
+  if(!rows.length) return;
+
+  const maxYear=rows[rows.length-1].year;
+  const yearData=[];
+  for(let y=1;y<=maxYear;y++){
+    const yr=rows.filter(r=>r.year===y&&!r.isPrepay);
+    if(!yr.length) continue;
+    yearData.push({y, annualPrin:yr.reduce((a,r)=>a+r.principal,0), annualInt:yr.reduce((a,r)=>a+r.interest,0)});
+  }
+  if(!yearData.length) return;
+
+  const maxVal=Math.max(...yearData.map(d=>d.annualPrin+d.annualInt));
+  const W=820,H=260,padL=38,padR=10,padT=40,padB=20;
+  const chartW=W-padL-padR,chartH=H-padT-padB,bottom=padT+chartH;
+  const nBars=yearData.length;
+  const barW=Math.max(2,Math.floor(chartW/nBars*0.72));
+  const gap=(chartW-barW*nBars)/(nBars+1);
+
+  function yH(v){return(v/maxVal)*chartH;}
+  function xLeft(i){return padL+gap+i*(barW+gap);}
+
+  yearData.forEach((d,i)=>{
+    const x=xLeft(i);
+    const hP=yH(d.annualPrin), hI=yH(d.annualInt);
+    const rp=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rp.setAttribute('x',x);rp.setAttribute('y',bottom-hP);rp.setAttribute('width',barW);rp.setAttribute('height',hP);rp.setAttribute('fill','url(#grad-p)');rp.setAttribute('rx','1');
+    g.appendChild(rp);
+    const ri=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    ri.setAttribute('x',x);ri.setAttribute('y',bottom-hP-hI);ri.setAttribute('width',barW);ri.setAttribute('height',hI);ri.setAttribute('fill','url(#grad-i)');ri.setAttribute('rx','1');
+    g.appendChild(ri);
+  });
+
+  const labelH=22,labelFontSize=11;
+  rateChangeEvents.forEach((rc,rcIdx)=>{
+    const targetYear=Math.ceil(rc.month/12);
+    const idx=yearData.findIndex(d=>d.y===targetYear);
+    if(idx<0) return;
+    const x=xLeft(idx)+barW/2;
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',x);line.setAttribute('y1',padT);line.setAttribute('x2',x);line.setAttribute('y2',bottom);
+    line.setAttribute('stroke','#a0845c');line.setAttribute('stroke-width','1.5');line.setAttribute('stroke-dasharray','4,3');
+    markerG.appendChild(line);
+    const label=rc.rate+'%に変動';
+    const textW=label.length*labelFontSize*0.62+12;
+    const lx=Math.max(6,Math.min(rcIdx===0?x-textW/2:x-textW/2,W-textW-6));
+    const ly=2;
+    const arr=document.createElementNS('http://www.w3.org/2000/svg','line');
+    arr.setAttribute('x1',x);arr.setAttribute('y1',ly+labelH);arr.setAttribute('x2',x);arr.setAttribute('y2',padT-2);
+    arr.setAttribute('stroke','#c4956a');arr.setAttribute('stroke-width','1');
+    markerG.appendChild(arr);
+    const tip=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+    tip.setAttribute('points',`${x-3},${padT+3} ${x+3},${padT+3} ${x},${padT-2}`);
+    tip.setAttribute('fill','#c4956a');
+    markerG.appendChild(tip);
+    const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    bg.setAttribute('x',lx);bg.setAttribute('y',ly);bg.setAttribute('width',textW);bg.setAttribute('height',labelH);
+    bg.setAttribute('rx','5');bg.setAttribute('fill','#faf0e4');bg.setAttribute('stroke','#c4956a');bg.setAttribute('stroke-width','1');
+    markerG.appendChild(bg);
+    const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x',lx+textW/2);txt.setAttribute('y',ly+labelH/2+4);txt.setAttribute('text-anchor','middle');
+    txt.setAttribute('font-size',labelFontSize);txt.setAttribute('fill','#9b7e5a');txt.setAttribute('font-family','Lato,sans-serif');
+    txt.textContent=label;
+    markerG.appendChild(txt);
+  });
+}
+
+/* ===== 償還表 ===== */
+function renderSchedule(rows, rateChanges){
+  const head=document.getElementById('schedule-head');
+  const body=document.getElementById('schedule-body');
+  const changes=(rateChanges||[]).slice();
+
+  if(scheduleMode==='monthly'){
+    head.innerHTML=`<tr><th>回</th><th>金利</th><th>通常月返済額</th><th>ボーナス加算</th><th>元金</th><th>利息</th><th>残高</th></tr>`;
+    body.innerHTML='';
+    rows.forEach(r=>{
+      // 金利変動行
+      const rc=changes.find(c=>c.month===r.month);
+      if(rc){
+        const dtr=document.createElement('tr'); dtr.classList.add('rate-row');
+        dtr.innerHTML=`<td colspan="7">▼ ${r.month}ヶ月目より 年利 ${rc.rate}% に変動</td>`;
+        body.appendChild(dtr);
+      }
+      // 繰上返済行
+      if(r.isPrepay){
+        const ptr=document.createElement('tr'); ptr.classList.add('prepay-row');
+        ptr.innerHTML=`<td colspan="7">▲ ${r.month}ヶ月目 繰上返済 ${fmtN(r.payment)}円（残高 ${fmtN(r.balance)}円）</td>`;
+        body.appendChild(ptr);
+        return;
+      }
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${r.month}回${r.isBonus?' ★':''}</td>
+        <td>${r.rate.toFixed(2)}%</td>
+        <td>${fmtN(r.normalPayment)}</td>
+        <td>${r.bonusExtra>0?fmtN(r.bonusExtra):'-'}</td>
+        <td class="pc">${fmtN(r.principal)}</td>
+        <td class="ic">${fmtN(r.interest)}</td>
+        <td>${fmtN(r.balance)}</td>`;
+      body.appendChild(tr);
+    });
+  } else {
+    head.innerHTML=`<tr><th>年</th><th>年間返済額</th><th>うち通常月</th><th>うちボーナス</th><th>元金計</th><th>利息計</th><th>年末残高</th></tr>`;
+    body.innerHTML='';
+    const maxYear=rows.length>0?rows[rows.length-1].year:0;
+    for(let y=1;y<=maxYear;y++){
+      const yr=rows.filter(r=>r.year===y&&!r.isPrepay);
+      if(!yr.length) continue;
+      const sumPay=yr.reduce((a,r)=>a+r.payment,0);
+      const sumNormal=yr.reduce((a,r)=>a+r.normalPayment,0);
+      const sumBonus=yr.reduce((a,r)=>a+r.bonusExtra,0);
+      const tr=document.createElement('tr'); tr.classList.add('year-row');
+      tr.innerHTML=`<td>${y}年目</td>
+        <td>${fmtN(sumPay)}</td>
+        <td>${fmtN(sumNormal)}</td>
+        <td>${sumBonus>0?fmtN(sumBonus):'-'}</td>
+        <td class="pc">${fmtN(yr.reduce((a,r)=>a+r.principal,0))}</td>
+        <td class="ic">${fmtN(yr.reduce((a,r)=>a+r.interest,0))}</td>
+        <td>${fmtN(yr[yr.length-1].balance)}</td>`;
+      body.appendChild(tr);
+    }
+  }
+}
+
+updateAll();
+</script>
+  <!-- フッター注意書き -->
+  <div style="width:100%;max-width:980px;margin-top:24px;padding:16px 20px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;text-align:center;">
+    <div style="font-size:11px;color:var(--text-muted);line-height:1.8;">
+      ⚠️ 本ツールはあくまでも概算シミュレーションです。実際の返済額・利息・条件は金融機関によって異なりますので、ローンのご契約・詳細のご確認は必ず各金融機関にお問い合わせください。
+    </div>
+  </div>
+
+</body>
+</html>
