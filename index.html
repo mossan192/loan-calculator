@@ -26,6 +26,12 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
 h1{font-size:26px;font-weight:700;color:#fff;letter-spacing:1px;}
 
 .wrapper{width:100%;max-width:980px;display:flex;flex-direction:column;gap:16px;animation:fadeUp .6s ease .1s both;}
+
+.card-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.card-title-row .card-title{margin-bottom:0;}
+.pdf-export-btn{display:flex;align-items:center;gap:6px;background:linear-gradient(135deg,#a0845c,#c4a07a);color:#fff;border:none;border-radius:9px;padding:8px 16px;font-size:12px;font-family:'Noto Sans JP',sans-serif;letter-spacing:.5px;text-transform:none;cursor:pointer;box-shadow:0 2px 8px rgba(120,80,40,.2);transition:opacity .2s,transform .15s;white-space:nowrap;}
+.pdf-export-btn:hover{opacity:.9;transform:translateY(-1px);}
+.pdf-export-btn:disabled{opacity:.55;cursor:not-allowed;transform:none;}
 .row{display:grid;gap:16px;}
 .row-2{grid-template-columns:1fr 1fr;}
 .row-3{grid-template-columns:repeat(3,1fr);}
@@ -128,6 +134,41 @@ tbody tr.prepay-row td{background:#eef6f0;color:var(--green);font-weight:500;fon
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 .pop{animation:pop .22s ease;}
 @keyframes pop{0%{opacity:.6;transform:scale(.97)}100%{opacity:1;transform:scale(1)}}
+
+/* ===== PDF/印刷用レポート ===== */
+#print-report{display:none;}
+.pr-title{text-align:center;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #a0845c;}
+.pr-title .pr-eyebrow{font-size:10px;letter-spacing:3px;color:#a0845c;text-transform:uppercase;font-family:'Lato',sans-serif;}
+.pr-title h2{font-size:20px;font-weight:700;color:#3a2e22;margin-top:4px;}
+.pr-title .pr-date{font-size:11px;color:#8a7560;margin-top:6px;}
+.pr-section-title{font-size:11px;letter-spacing:2px;color:#a0845c;font-weight:700;margin:16px 0 8px;}
+.pr-kv{width:100%;border-collapse:collapse;font-size:12px;}
+.pr-kv td{padding:5px 8px;border-bottom:1px solid #eee2d2;}
+.pr-kv td:first-child{color:#8a7560;width:33%;}
+.pr-kv td:last-child{text-align:right;font-weight:700;}
+.pr-cards{display:flex;gap:8px;flex-wrap:wrap;}
+.pr-card{flex:1;min-width:110px;background:#f7f2ea;border:1px solid #e0d6c8;border-radius:9px;padding:10px 6px;text-align:center;}
+.pr-card .l{font-size:9px;color:#8a7560;margin-bottom:4px;}
+.pr-card .v{font-family:'Lato',sans-serif;font-size:15px;font-weight:700;color:#3a2e22;}
+.pr-card .s{font-size:9px;color:#baa890;margin-top:2px;}
+.pr-chart-box{border:1px solid #e0d6c8;border-radius:9px;padding:8px;}
+.pr-chart-box svg{width:100%;height:auto;display:block;}
+.pr-table{width:100%;border-collapse:collapse;font-size:11px;}
+.pr-table thead{display:table-header-group;}
+.pr-table th{padding:6px 6px;text-align:right;color:#8a7560;font-size:10px;background:#f0ebe3;border-bottom:1.5px solid #cec4b4;}
+.pr-table th:first-child{text-align:left;}
+.pr-table td{padding:5px 6px;text-align:right;border-bottom:1px solid #eee2d2;}
+.pr-table td:first-child{text-align:left;}
+.pr-table tr{page-break-inside:avoid;break-inside:avoid;}
+.pr-note{margin-top:12px;padding:10px 12px;background:#f0ebe3;border-radius:9px;font-size:9px;color:#8a7560;line-height:1.7;}
+.pr-page-break{page-break-before:always;break-before:page;}
+
+@media print{
+  @page{ size:A4; margin:14mm; }
+  body{padding:0;background:#fff;}
+  body > *:not(#print-report){display:none!important;}
+  #print-report{display:block!important;}
+}
 </style>
 </head>
 <body>
@@ -257,7 +298,10 @@ tbody tr.prepay-row td{background:#eef6f0;color:var(--green);font-weight:500;fon
 
   <!-- サマリー -->
   <div class="card">
-    <div class="card-title">計算結果サマリー</div>
+    <div class="card-title-row">
+      <div class="card-title">計算結果サマリー</div>
+      <button class="pdf-export-btn" id="pdf-export-btn" onclick="exportPDF()">📄 PDF出力</button>
+    </div>
     <div class="row row-5">
       <div class="result-card c-brown">
         <div class="result-label">月々の返済額</div>
@@ -349,6 +393,7 @@ let bonusMode = 'per-payment';
 let prepayType = 'none'; // none / shorten / reduce / both
 let lastRows = [];
 let rateChanges = [];
+let lastSummary = null;
 
 /* ===== 繰上返済タイプ ===== */
 function setPrepayType(t, btn) {
@@ -617,6 +662,7 @@ function updateAll(){
     document.getElementById('schedule-head').innerHTML='';
     document.getElementById('schedule-body').innerHTML='';
     document.getElementById('prepay-effect-panel').style.display='none';
+    lastSummary = null;
     return;
   }
 
@@ -817,6 +863,16 @@ function updateAll(){
 
   drawBarChart(simRows, sortedChanges);
   renderSchedule(simRows, sortedChanges);
+
+  // PDF出力用にサマリー情報を保持
+  lastSummary = {
+    amount, years, rate0, sortedChanges, method, bonusMode, bonusInput,
+    prepayType, prepayAmt, prepayTim, shortenRatio,
+    monthlyPayment: normalRow.normalPayment,
+    bonusExtra: (firstBonusRow && firstBonusRow.bonusExtra>0) ? firstBonusRow.bonusExtra : 0,
+    year1Total, simTotalPaid, simInterest, simMonths, principalPct,
+    interestSave, periodSaveMonths, monthlyReduce, rateAtPrepayDisplay
+  };
 }
 
 /* ===== 棒グラフ ===== */
@@ -947,14 +1003,144 @@ function renderSchedule(rows, rateChanges){
   }
 }
 
+/* ===== PDF出力（ブラウザ標準の印刷機能を利用。外部ライブラリ不要） ===== */
+function pad2(n){ return String(n).padStart(2,'0'); }
+function todayStr(){
+  const d=new Date();
+  return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}`;
+}
+function todayDisp(){
+  const d=new Date();
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+function methodLabel(m){ return m==='equal-payment'?'元利均等返済':'元金均等返済'; }
+function prepayTypeLabel(t){
+  return {none:'なし',shorten:'期間短縮型',reduce:'返済額軽減型',both:'併用型'}[t]||'なし';
+}
+function buildYearlyRowsForPdf(rows){
+  const maxYear = rows.length>0 ? rows[rows.length-1].year : 0;
+  const out=[];
+  for(let y=1;y<=maxYear;y++){
+    const yr=rows.filter(r=>r.year===y&&!r.isPrepay);
+    if(!yr.length) continue;
+    out.push({
+      year:y,
+      total:yr.reduce((a,r)=>a+r.payment,0),
+      principal:yr.reduce((a,r)=>a+r.principal,0),
+      interest:yr.reduce((a,r)=>a+r.interest,0),
+      balance:yr[yr.length-1].balance
+    });
+  }
+  return out;
+}
+function prCard(label,value,sub){
+  return `<div class="pr-card"><div class="l">${label}</div><div class="v">${value}</div><div class="s">${sub||''}</div></div>`;
+}
+
+/* 印刷用レポートのHTMLを組み立てて #print-report に流し込む */
+function fillPrintReport(){
+  const s = lastSummary;
+  const rows = lastRows;
+  const yearly = buildYearlyRowsForPdf(rows);
+  const reportEl = document.getElementById('print-report');
+
+  let html='';
+  html+=`<div class="pr-title">
+    <div class="pr-eyebrow">Loan Calculator</div>
+    <h2>ローン試算結果</h2>
+    <div class="pr-date">作成日：${todayDisp()}</div>
+  </div>`;
+
+  html+=`<div class="pr-section-title">借入条件</div>
+  <table class="pr-kv">
+    <tr><td>借入金額</td><td>${fmtN(s.amount)}円</td></tr>
+    <tr><td>返済期間</td><td>${s.years}年</td></tr>
+    <tr><td>当初金利</td><td>年${s.rate0.toFixed(2)}%</td></tr>
+    <tr><td>返済方式</td><td>${methodLabel(s.method)}</td></tr>
+    ${s.bonusInput>0?`<tr><td>ボーナス払い</td><td>${fmtN(s.bonusInput)}円${s.bonusMode==='per-payment'?'／回':'（借入額として）'}</td></tr>`:''}
+    ${s.sortedChanges.map(rc=>`<tr><td>金利変動</td><td>${rc.month}ヶ月目〜 年${rc.rate.toFixed(2)}%</td></tr>`).join('')}
+    ${s.prepayType!=='none'&&s.prepayAmt>0?`<tr><td>繰上返済</td><td>${prepayTypeLabel(s.prepayType)}／${fmtN(s.prepayAmt)}円／${s.prepayTim}ヶ月後</td></tr>`:''}
+  </table>`;
+
+  html+=`<div class="pr-section-title">計算結果サマリー</div>
+  <div class="pr-cards">
+    ${prCard('月々の返済額', fmtN(s.monthlyPayment)+'円','円/月')}
+    ${prCard('ボーナス加算額', s.bonusExtra>0?fmtN(s.bonusExtra)+'円':'—', s.bonusExtra>0?'通常月に加算':'ボーナス払いなし')}
+    ${prCard('年間返済額', fmtN(s.year1Total)+'円','初年度年間合計')}
+    ${prCard('総返済額', fmt(s.simTotalPaid), Math.ceil(s.simMonths/12)+'年間の総支払い')}
+    ${prCard('総利息額', fmt(s.simInterest), '元金比率 '+s.principalPct.toFixed(1)+'%')}
+  </div>`;
+
+  if(s.prepayType!=='none'&&s.prepayAmt>0){
+    html+=`<div class="pr-section-title">繰上返済の効果</div>
+    <div class="pr-cards">
+      ${prCard('利息圧縮額', fmt(s.interestSave), '繰上時点の金利('+s.rateAtPrepayDisplay.toFixed(2)+'%)基準')}
+      ${(s.prepayType==='shorten'||s.prepayType==='both')?prCard('返済期間の短縮', s.periodSaveMonths>0?(Math.floor(s.periodSaveMonths/12)>0?Math.floor(s.periodSaveMonths/12)+'年':'')+(s.periodSaveMonths%12>0?(s.periodSaveMonths%12)+'ヶ月':'')+'短縮':'変化なし',''):''}
+      ${(s.prepayType==='reduce'||s.prepayType==='both')?prCard('月額軽減額', s.monthlyReduce>0?fmtN(s.monthlyReduce)+'円 軽減':'変化なし',''):''}
+    </div>`;
+  }
+
+  html+=`<div class="pr-section-title">年間返済額の推移（元金・利息の内訳）</div>
+  <div class="pr-chart-box" id="print-chart-slot"></div>`;
+
+  html+=`<div class="pr-note">※ 本資料はあくまでも概算シミュレーションです。実際の返済額・利息・条件は金融機関によって異なりますので、ローンのご契約・詳細のご確認は必ず各金融機関にお問い合わせください。</div>`;
+
+  // 償還表（年次）：新しいページから開始。thead はブラウザの印刷機能により各ページに自動で繰り返される
+  html+=`<div class="pr-page-break"></div>
+  <div class="pr-section-title" style="margin-top:0;">償還表（年次）</div>
+  <table class="pr-table">
+    <thead><tr><th>年</th><th>年間返済額</th><th>元金計</th><th>利息計</th><th>年末残高</th></tr></thead>
+    <tbody>
+      ${yearly.map(y=>`<tr>
+        <td>${y.year}年目</td>
+        <td>${fmtN(y.total)}</td>
+        <td>${fmtN(y.principal)}</td>
+        <td>${fmtN(y.interest)}</td>
+        <td>${fmtN(y.balance)}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+
+  reportEl.innerHTML = html;
+
+  // グラフ（画面のSVGを複製して埋め込む。IDは重複しないよう付け替える）
+  const chartSlot = document.getElementById('print-chart-slot');
+  const srcSvg = document.getElementById('bar-svg');
+  if(chartSlot && srcSvg && rows.length){
+    const svgClone = srcSvg.cloneNode(true);
+    svgClone.querySelectorAll('[id]').forEach(node=>{
+      const oldId=node.id, newId=oldId+'-print';
+      node.id=newId;
+      svgClone.querySelectorAll(`[fill="url(#${oldId})"]`).forEach(n2=>n2.setAttribute('fill',`url(#${newId})`));
+      svgClone.querySelectorAll(`[clip-path="url(#${oldId})"]`).forEach(n2=>n2.setAttribute('clip-path',`url(#${newId})`));
+    });
+    svgClone.removeAttribute('width');
+    svgClone.removeAttribute('height');
+    chartSlot.appendChild(svgClone);
+  }
+}
+
+function exportPDF(){
+  if(!lastSummary || !lastRows.length){
+    alert('先にローン条件を入力して試算結果を表示してください。');
+    return;
+  }
+  fillPrintReport();
+  // 印刷ダイアログが開く。「送信先」を「PDFに保存」にして保存すればPDFとしてダウンロードできる
+  window.print();
+}
+
 updateAll();
 </script>
   <!-- フッター注意書き -->
-  <div style="width:100%;max-width:980px;margin-top:24px;padding:16px 20px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;text-align:center;">
+  <div id="app-footer-note" style="width:100%;max-width:980px;margin-top:24px;padding:16px 20px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;text-align:center;">
     <div style="font-size:11px;color:var(--text-muted);line-height:1.8;">
       ⚠️ 本ツールはあくまでも概算シミュレーションです。実際の返済額・利息・条件は金融機関によって異なりますので、ローンのご契約・詳細のご確認は必ず各金融機関にお問い合わせください。
     </div>
   </div>
+
+  <!-- 印刷/PDF専用レポート（通常画面では非表示、印刷時のみ表示） -->
+  <div id="print-report"></div>
 
 </body>
 </html>
