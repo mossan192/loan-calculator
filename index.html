@@ -188,14 +188,14 @@ tbody tr.prepay-row td{background:#eef6f0;color:var(--green);font-weight:500;fon
       <div class="field">
         <div class="field-label">借入金額</div>
         <div class="input-group">
-          <input type="text" id="amount" placeholder="例：30,000,000" oninput="onCommaInput(this)" onblur="formatOnBlur(this)" onfocus="this.select()">
+          <input type="text" id="amount" placeholder="例：30,000,000" maxlength="16" inputmode="numeric" oninput="onCommaInput(this)" onblur="formatOnBlur(this)" onfocus="this.select()">
           <div class="input-unit">円</div>
         </div>
       </div>
       <div class="field">
         <div class="field-label">返済期間</div>
         <div class="input-group">
-          <input type="text" id="years" placeholder="例：35" oninput="onCommaInput(this)" onblur="formatOnBlur(this)" onfocus="this.select()">
+          <input type="text" id="years" placeholder="例：35" maxlength="4" inputmode="decimal" oninput="onCommaInput(this)" onblur="onYearsBlur(this)" onfocus="this.select()">
           <div class="input-unit">年</div>
         </div>
       </div>
@@ -395,6 +395,13 @@ let lastRows = [];
 let rateChanges = [];
 let lastSummary = null;
 
+/* ===== 入力値の上限（ブラウザのフリーズ・メモリ枯渇を防ぐ） ===== */
+const MAX_AMOUNT = 10000000000; // 借入金額 100億円
+const MAX_YEARS  = 50;          // 返済期間 50年
+const MAX_RATE   = 20;          // 年利 20%
+const MAX_MONTHS = 1200;        // シミュレーションループの絶対上限（100年分）
+function clamp(v,min,max){ return Math.min(max, Math.max(min, v)); }
+
 /* ===== 繰上返済タイプ ===== */
 function setPrepayType(t, btn) {
   prepayType = t;
@@ -415,6 +422,41 @@ function removeRateChange(idx) {
   rateChanges.splice(idx,1);
   renderRateChanges(); updateAll();
 }
+/* 【セキュリティ修正】
+   以前は innerHTML のテンプレート文字列に value="${rc.rate}" を直接埋め込んでいたため、
+   入力値に " を含む文字列を打ち込むと属性の外へ抜け出して任意のイベントハンドラを
+   注入できた（DOM-based XSS）。
+   ここでは createElement + value プロパティ代入に変更している。
+   プロパティ代入された文字列はHTMLとして解釈されないため、原理的に注入が成立しない。 */
+const RC_INPUT_STYLE = "text-align:right;padding:8px 10px;font-size:14px;font-family:'Lato',sans-serif;border:none;background:transparent;outline:none;flex:1;color:var(--text);min-width:0;";
+
+function buildRateField(idx, labelText, value, placeholder, unit, field){
+  const box   = document.createElement('div');
+  const cap   = document.createElement('div');
+  cap.className = 'rate-row-label';
+  cap.textContent = labelText;
+
+  const group = document.createElement('div');
+  group.className = 'input-group';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = value;               // ← HTMLとして解釈されない安全な代入
+  input.placeholder = placeholder;
+  input.style.cssText = RC_INPUT_STYLE;
+  input.addEventListener('input', () => onRateChangeInput(idx, field, input));
+  input.addEventListener('focus', () => input.select());
+  if(field === 'month') input.addEventListener('blur', () => formatOnBlur(input));
+
+  const u = document.createElement('div');
+  u.className = 'input-unit';
+  u.textContent = unit;
+
+  group.appendChild(input); group.appendChild(u);
+  box.appendChild(cap);     box.appendChild(group);
+  return box;
+}
+
 function renderRateChanges() {
   const wrap=document.getElementById('rate-changes-wrap');
   const btn=document.getElementById('add-rate-btn');
@@ -422,41 +464,43 @@ function renderRateChanges() {
   rateChanges.forEach((rc,i)=>{
     const div=document.createElement('div');
     div.style.marginBottom='10px';
-    div.innerHTML=`
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-        <div class="field-label" style="margin:0">金利変動 ${i+1}回目</div>
-        <button class="rate-remove-btn" onclick="removeRateChange(${i})">削除</button>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <div>
-          <div class="rate-row-label">変動タイミング</div>
-          <div class="input-group">
-            <input type="text" value="${rc.month}" placeholder="例：60"
-              oninput="onRateChangeInput(${i},'month',this)" onblur="formatOnBlur(this)"
-              style="text-align:right;padding:8px 10px;font-size:14px;font-family:'Lato',sans-serif;border:none;background:transparent;outline:none;flex:1;color:var(--text);min-width:0;" onfocus="this.select()">
-            <div class="input-unit">ヶ月後</div>
-          </div>
-        </div>
-        <div>
-          <div class="rate-row-label">変動後の年利率</div>
-          <div class="input-group">
-            <input type="text" value="${rc.rate}" placeholder="例：2.00"
-              oninput="onRateChangeInput(${i},'rate',this)"
-              style="text-align:right;padding:8px 10px;font-size:14px;font-family:'Lato',sans-serif;border:none;background:transparent;outline:none;flex:1;color:var(--text);min-width:0;" onfocus="this.select()">
-            <div class="input-unit">%</div>
-          </div>
-        </div>
-      </div>`;
+
+    // ヘッダー行（見出し＋削除ボタン）
+    const head=document.createElement('div');
+    head.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;';
+    const label=document.createElement('div');
+    label.className='field-label'; label.style.margin='0';
+    label.textContent=`金利変動 ${i+1}回目`;
+    const del=document.createElement('button');
+    del.className='rate-remove-btn'; del.type='button'; del.textContent='削除';
+    del.addEventListener('click', ()=>removeRateChange(i));
+    head.appendChild(label); head.appendChild(del);
+
+    // 入力欄
+    const body=document.createElement('div');
+    body.style.cssText='display:flex;flex-direction:column;gap:8px;';
+    body.appendChild(buildRateField(i,'変動タイミング',   rc.month===''?'':String(rc.month), '例：60',   'ヶ月後','month'));
+    body.appendChild(buildRateField(i,'変動後の年利率', rc.rate, '例：2.00', '%',     'rate'));
+
+    div.appendChild(head); div.appendChild(body);
     wrap.appendChild(div);
   });
   btn.disabled=rateChanges.length>=2;
 }
 function onRateChangeInput(idx,field,el) {
   if(field==='month'){
-    const raw=el.value.replace(/[^0-9]/g,'');
+    const raw=el.value.replace(/[^0-9]/g,'').slice(0,4);
     el.value=raw.replace(/\B(?=(\d{3})+(?!\d))/g,',');
     rateChanges[idx].month=parseInt(raw)||'';
-  } else { rateChanges[idx].rate=el.value; }
+  } else {
+    // 数字とドットのみ許可し、不正な文字は保存段階で落とす（多層防御）
+    let raw=el.value.replace(/[^0-9.]/g,'');
+    const p=raw.split('.');
+    if(p.length>2) raw=p[0]+'.'+p.slice(1).join('');
+    raw=raw.slice(0,6);
+    el.value=raw;
+    rateChanges[idx].rate=raw;
+  }
   updateAll();
 }
 
@@ -478,6 +522,14 @@ function formatOnBlur(el) {
   const parts=raw.split('.');
   parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,',');
   el.value=parts.join('.');
+}
+/* 返済期間はフォーカスを外した時点で上限に丸めて表示する（裏で丸めると気づけないため） */
+function onYearsBlur(el){
+  const raw=el.value.replace(/[^0-9.]/g,'');
+  if(!raw){ return; }
+  const v=clamp(parseFloat(raw)||1, 1, MAX_YEARS);
+  el.value=String(v);
+  updateAll();
 }
 function setMethod(m,btn){
   method=m;
@@ -542,7 +594,10 @@ function simulate(amount, years, rate0, sortedChanges, bonusCfg, prepayCfg) {
   let targetEndMonth = n;
   let monthCounter = 0;
 
-  while(balance > 0.5 && monthCounter < n*2) {
+  // 【修正】ループに絶対上限を設ける。万一 n が異常値でも必ず有限回で抜ける
+  const loopCap = Math.min(n*2, MAX_MONTHS);
+
+  while(balance > 0.5 && monthCounter < loopCap) {
     monthCounter++;
     const i = monthCounter;
 
@@ -644,14 +699,16 @@ function simulate(amount, years, rate0, sortedChanges, bonusCfg, prepayCfg) {
 
 /* ===== メイン計算 ===== */
 function updateAll(){
-  const amount = rawNum('amount');
-  const years  = rawNum('years')||1;
-  const rate0  = parseFloat(document.getElementById('rate0').value)||0;
-  const bonusInput = rawNum('bonus');
-  const prepayAmt  = rawNum('prepay');
-  const prepayTim  = rawNum('prepay-timing')||1;
-  const shortenRatio = rawNum('prepay-shorten-ratio')||50;
+  // 【修正】全入力値に上限・下限を設定。
+  // 以前は返済期間が無制限で、大きな数値を入力するとループ回数が爆発してタブが固まった。
+  const amount = clamp(rawNum('amount'), 0, MAX_AMOUNT);
+  const years  = clamp(rawNum('years')||1, 1, MAX_YEARS);
+  const rate0  = clamp(parseFloat(document.getElementById('rate0').value)||0, 0, MAX_RATE);
+  const bonusInput = clamp(rawNum('bonus'), 0, MAX_AMOUNT);
+  const prepayAmt  = clamp(rawNum('prepay'), 0, MAX_AMOUNT);
   const n = Math.round(years*12);
+  const prepayTim  = clamp(rawNum('prepay-timing')||1, 1, n);
+  const shortenRatio = clamp(rawNum('prepay-shorten-ratio')||50, 0, 100);
 
   const IDS=['res-monthly','res-bonus','res-annual','res-total','res-interest'];
   if(amount<=0){
@@ -668,7 +725,7 @@ function updateAll(){
 
   const sortedChanges=rateChanges
     .filter(rc=>rc.month>0&&rc.rate!=='')
-    .map(rc=>({month:parseInt(rc.month),rate:parseFloat(rc.rate)||0}))
+    .map(rc=>({month:clamp(parseInt(rc.month)||1,1,n),rate:clamp(parseFloat(rc.rate)||0,0,MAX_RATE)}))
     .sort((a,b)=>a.month-b.month);
 
   // ボーナス設定
